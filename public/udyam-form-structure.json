@@ -1,0 +1,100 @@
+{
+  "steps": [
+    {
+      "step_number": 1,
+      "title": "Aadhaar Verification",
+      "description": "Enter your Aadhaar number for verification",
+      "fields": [
+        {
+          "id": "aadhaar_number",
+          "name": "aadhaar_number",
+          "type": "text",
+          "label": "Aadhaar Number",
+          "placeholder": "Enter 12-digit Aadhaar number",
+          "required": true,
+          "maxlength": "12",
+          "validation": {
+            "pattern": "^\\d{12}$",
+            "message": "Please enter a valid 12-digit Aadhaar number"
+          }
+        },
+        {
+          "id": "otp",
+          "name": "otp",
+          "type": "text",
+          "label": "OTP",
+          "placeholder": "Enter 6-digit OTP",
+          "required": true,
+          "maxlength": "6",
+          "validation": {
+            "pattern": "^\\d{6}$",
+            "message": "Please enter a valid 6-digit OTP"
+          }
+        }
+      ]
+    },
+    {
+      "step_number": 2,
+      "title": "PAN Verification",
+      "description": "Enter your PAN details for verification",
+      "fields": [
+        {
+          "id": "pan_number",
+          "name": "pan_number",
+          "type": "text",
+          "label": "PAN Number",
+          "placeholder": "ABCDE1234F",
+          "required": true,
+          "maxlength": "10",
+          "validation": {
+            "pattern": "^[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}$",
+            "message": "Please enter a valid PAN number (e.g., ABCDE1234F)"
+          }
+        },
+        {
+          "id": "applicant_name",
+          "name": "applicant_name",
+          "type": "text",
+          "label": "Name as per PAN",
+          "placeholder": "Enter name as per PAN card",
+          "required": true,
+          "validation": {
+            "pattern": "^[A-Za-z\\s]{2,50}$",
+            "message": "Please enter a valid name"
+          }
+        }
+      ]
+    }
+  ],
+  "validation_rules": {
+    "aadhaar": {
+      "pattern": "^\\d{12}$",
+      "message": "Aadhaar number must be 12 digits"
+    },
+    "pan": {
+      "pattern": "^[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}$",
+      "message": "PAN format: 5 letters, 4 numbers, 1 letter"
+    },
+    "otp": {
+      "pattern": "^\\d{6}$",
+      "message": "OTP must be 6 digits"
+    },
+    "name": {
+      "pattern": "^[A-Za-z\\s]{2,50}$",
+      "message": "Name should contain only letters and spaces"
+    }
+  },
+  "ui_components": {
+    "buttons": [
+      { "text": "Send OTP", "type": "button" },
+      { "text": "Verify OTP", "type": "button" },
+      { "text": "Verify PAN", "type": "button" },
+      { "text": "Next", "type": "submit" }
+    ]
+  },
+  "metadata": {
+    "scraped_at": "2025-01-08 12:00:00",
+    "source_url": "https://udyamregistration.gov.in/UdyamRegistration.aspx",
+    "note": "Initial form structure for Udyam registration steps 1 & 2"
+  }
+}

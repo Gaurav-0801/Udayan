@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model UdyamSubmission {
+  id                    String   @id @default(cuid())
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  
+  // Personal Information
+  aadhaarNumber        String   @map("aadhaar_number")
+  entrepreneurName     String   @map("entrepreneur_name")
+  mobileNumber         String?  @map("mobile_number")
+  emailAddress         String?  @map("email_address")
+  
+  // Address Information
+  pinCode              String?  @map("pin_code")
+  city                 String?
+  state                String?
+  district             String?
+  address              String?
+  
+  // Business Information
+  enterpriseName       String?  @map("enterprise_name")
+  panNumber            String?  @map("pan_number")
+  gstNumber            String?  @map("gst_number")
+  businessType         String?  @map("business_type")
+  activityType         String?  @map("activity_type")
+  
+  // Verification Status
+  aadhaarVerified      Boolean  @default(false) @map("aadhaar_verified")
+  otpVerified          Boolean  @default(false) @map("otp_verified")
+  panVerified          Boolean  @default(false) @map("pan_verified")
+  
+  // Form Data
+  formData             Json?    @map("form_data")
+  submissionStatus     String   @default("draft") @map("submission_status") // draft, submitted, approved, rejected
+  
+  @@map("udyam_submissions")
+}
+
+model OtpVerification {
+  id                   String   @id @default(cuid())
+  createdAt           DateTime @default(now()) @map("created_at")
+  expiresAt           DateTime @map("expires_at")
+  
+  aadhaarNumber       String   @map("aadhaar_number")
+  otpCode             String   @map("otp_code")
+  isVerified          Boolean  @default(false) @map("is_verified")
+  attempts            Int      @default(0)
+  
+  @@map("otp_verifications")
+}
