@@ -48,7 +48,10 @@ export function FormField({
   const shouldShowPassword = (isAadhaarField || isPANField) && !showValue
 
   const handleSendOTP = async () => {
+    console.log("Send OTP clicked", { value, length: value?.length })
+
     if (!value || value.length !== 12) {
+      console.log("Invalid Aadhaar validation failed", { value, length: value?.length })
       toast({
         title: "Invalid Aadhaar",
         description: "Please enter a valid 12-digit Aadhaar number",
@@ -57,9 +60,11 @@ export function FormField({
       return
     }
 
+    console.log("Starting OTP request...")
     setIsLoadingOTP(true)
 
     try {
+      console.log("Making API call to /api/form/otp")
       const response = await fetch("/api/form/otp", {
         method: "POST",
         headers: {
@@ -71,7 +76,9 @@ export function FormField({
         }),
       })
 
+      console.log("API response received", { status: response.status, ok: response.ok })
       const result = await response.json()
+      console.log("API result:", result)
 
       if (response.ok) {
         setOtpSent(true)
@@ -85,6 +92,7 @@ export function FormField({
           description: "OTP has been generated successfully. Please check the alert for your OTP.",
         })
       } else {
+        console.error("API error:", result)
         toast({
           title: "Failed to Send OTP",
           description: result.error || "An error occurred while sending OTP",

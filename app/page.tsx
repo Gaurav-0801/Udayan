@@ -475,6 +475,7 @@ export default function UdyamRegistrationForm() {
                 className="text-white hover:text-purple-200"
                 aria-label="Toggle language"
               >
+                
                 <Globe className="h-4 w-4 mr-1" />
                 {t("languageToggle")}
               </Button>
