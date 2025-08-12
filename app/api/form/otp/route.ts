@@ -1,23 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { validateOTPWithDetails } from "@/lib/form-schema"
 
-let prismaClient: any = null
-
-async function getPrismaClient() {
-  if (!prismaClient && process.env.DATABASE_URL) {
-    const { prisma } = await import("@/lib/prisma")
-    prismaClient = prisma
+const otpStorage = new Map<
+  string,
+  {
+    otp: string
+    expiresAt: number
+    attempts: number
+    verified: boolean
   }
-  return prismaClient
-}
+>()
 
 export async function POST(request: NextRequest) {
   try {
-    const prisma = await getPrismaClient()
-    if (!prisma) {
-      return NextResponse.json({ error: "Database not available" }, { status: 503 })
-    }
-
     const { action, aadhaar, otp } = await request.json()
 
     if (action === "send") {
@@ -28,13 +23,11 @@ export async function POST(request: NextRequest) {
       // Generate 6-digit OTP
       const generatedOTP = Math.floor(100000 + Math.random() * 900000).toString()
 
-      await prisma.otpVerification.create({
-        data: {
-          aadhaarNumber: aadhaar,
-          otpCode: generatedOTP,
-          expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
-          attempts: 0,
-        },
+      otpStorage.set(aadhaar, {
+        otp: generatedOTP,
+        expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
+        attempts: 0,
+        verified: false,
       })
 
       return NextResponse.json({
@@ -53,47 +46,30 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: otpValidation.error }, { status: 400 })
       }
 
-      const storedOTP = await prisma.otpVerification.findFirst({
-        where: {
-          aadhaarNumber: aadhaar,
-          isVerified: false,
-        },
-        orderBy: { createdAt: "desc" },
-      })
-
-      if (!storedOTP) {
+      const storedOTPData = otpStorage.get(aadhaar)
+      if (!storedOTPData) {
         return NextResponse.json({ error: "OTP not found. Please request a new OTP." }, { status: 400 })
       }
 
-      if (new Date() > storedOTP.expiresAt) {
-        await prisma.otpVerification.delete({
-          where: { id: storedOTP.id },
-        })
+      if (Date.now() > storedOTPData.expiresAt) {
+        otpStorage.delete(aadhaar)
         return NextResponse.json({ error: "OTP has expired. Please request a new OTP." }, { status: 400 })
       }
 
-      if (storedOTP.attempts >= 3) {
-        await prisma.otpVerification.delete({
-          where: { id: storedOTP.id },
-        })
+      if (storedOTPData.attempts >= 3) {
+        otpStorage.delete(aadhaar)
         return NextResponse.json({ error: "Too many failed attempts. Please request a new OTP." }, { status: 400 })
       }
 
-      if (storedOTP.otpCode !== otp) {
-        await prisma.otpVerification.update({
-          where: { id: storedOTP.id },
-          data: { attempts: storedOTP.attempts + 1 },
-        })
+      if (storedOTPData.otp !== otp) {
+        storedOTPData.attempts += 1
         return NextResponse.json(
-          { error: `Invalid OTP. ${3 - (storedOTP.attempts + 1)} attempts remaining.` },
+          { error: `Invalid OTP. ${3 - storedOTPData.attempts} attempts remaining.` },
           { status: 400 },
         )
       }
 
-      await prisma.otpVerification.update({
-        where: { id: storedOTP.id },
-        data: { isVerified: true },
-      })
+      storedOTPData.verified = true
 
       return NextResponse.json({
         success: true,
