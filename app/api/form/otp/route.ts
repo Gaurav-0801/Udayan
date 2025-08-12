@@ -2,43 +2,11 @@ import { type NextRequest, NextResponse } from "next/server"
 import { validateOTPWithDetails } from "@/lib/form-schema"
 import { prisma } from "@/lib/prisma"
 
-async function sendSMS(phoneNumber: string, message: string) {
-  const MSG91_API_KEY = process.env.MSG91_API_KEY
-  const MSG91_TEMPLATE_ID = process.env.MSG91_TEMPLATE_ID || "default"
-
-  if (!MSG91_API_KEY) {
-    console.log(`SMS would be sent to ${phoneNumber}: ${message}`)
-    return { success: true, mock: true }
-  }
-
-  try {
-    const response = await fetch("https://control.msg91.com/api/v5/otp", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        authkey: MSG91_API_KEY,
-      },
-      body: JSON.stringify({
-        template_id: MSG91_TEMPLATE_ID,
-        mobile: phoneNumber,
-        otp: message.match(/\d{6}/)?.[0], // Extract OTP from message
-      }),
-    })
-
-    const result = await response.json()
-    return { success: response.ok, data: result }
-  } catch (error) {
-    console.error("SMS sending failed:", error)
-    return { success: false, error }
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     const { action, aadhaar, otp } = await request.json()
 
     if (action === "send") {
-      // Send OTP
       if (!aadhaar || aadhaar.length !== 12) {
         return NextResponse.json({ error: "Valid Aadhaar number is required" }, { status: 400 })
       }
@@ -58,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         success: true,
         message: "OTP generated successfully",
-        otp: generatedOTP, // Always return OTP for alert display
+        otp: generatedOTP, // Return OTP for alert display
       })
     } else if (action === "verify") {
       // Verify OTP
