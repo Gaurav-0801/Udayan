@@ -1,3 +1,5 @@
+"use client"
+
 import { type NextRequest, NextResponse } from "next/server"
 import { validateOTPWithDetails } from "@/lib/form-schema"
 import { prisma } from "@/lib/prisma"
