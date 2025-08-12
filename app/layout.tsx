@@ -7,7 +7,7 @@ import "./globals.css"
 export const metadata: Metadata = {
   title: "Udyam Registration Form",
   description: "Udyam Registration Form Replica - Ministry of MSME",
-  generator: "v0.dev",
+  generator: "Gaurav",
 }
 
 export default function RootLayout({
