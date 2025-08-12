@@ -37,6 +37,9 @@ export default function UdyamRegistrationForm() {
   const [pincode, setPincode] = useState("")
   const [isFormSubmitted, setIsFormSubmitted] = useState(false)
   const [submissionId, setSubmissionId] = useState<string>("")
+  const [otpInput, setOtpInput] = useState("")
+  const [otpError, setOtpError] = useState("")
+  const [isVerifyingOTP, setIsVerifyingOTP] = useState(false)
   const { toast } = useToast()
   const { t, tArray } = useTranslation(language) // Added tArray to destructuring
   const { data: locationData, loading: pinLoading, error: pinError, lookupPin } = usePinLookup()
@@ -114,7 +117,7 @@ export default function UdyamRegistrationForm() {
     },
   ]
 
-  const progressSteps = ["Aadhaar Verification", "Business Details"]
+  const progressSteps = ["Aadhaar Verification", "Business Details", "OTP Verification"]
 
   const validateField = async (fieldName: string, value: string) => {
     const field = udyamFields.find((f) => f.name === fieldName)
@@ -315,6 +318,8 @@ export default function UdyamRegistrationForm() {
     setIsFormSubmitted(false)
     setSubmissionId("")
     setPincode("")
+    setOtpInput("")
+    setOtpError("")
     toast({
       title: "Form Reset",
       description: "Form has been reset successfully.",
@@ -390,6 +395,117 @@ export default function UdyamRegistrationForm() {
       })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleGenerateOTP = async () => {
+    const aadhaarValue = (formData as FormData).aadhaar
+
+    if (!aadhaarValue || aadhaarValue.length !== 12) {
+      toast({
+        title: "Invalid Aadhaar",
+        description: "Please enter a valid 12-digit Aadhaar number first",
+        variant: "destructive",
+      })
+      return
+    }
+
+    try {
+      setIsSubmitting(true)
+
+      const response = await fetch("/api/form/otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "send",
+          aadhaar: aadhaarValue,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        // Show OTP in alert
+        alert(`Your OTP is: ${data.otp}\n\nPlease remember this OTP for verification.`)
+
+        toast({
+          title: "OTP Generated",
+          description: "OTP has been generated successfully. Please use it for verification.",
+        })
+
+        // Move to next step or enable form submission
+        setCurrentStep(3)
+      } else {
+        toast({
+          title: "Error",
+          description: data.error || "Failed to generate OTP",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("OTP generation error:", error)
+      toast({
+        title: "Error",
+        description: "Failed to generate OTP. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleVerifyOTP = async () => {
+    if (!otpInput || otpInput.length !== 6) {
+      setOtpError("Please enter a valid 6-digit OTP")
+      return
+    }
+
+    setIsVerifyingOTP(true)
+    setOtpError("")
+
+    try {
+      const response = await fetch("/api/form/otp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "verify",
+          aadhaar: (formData as FormData).aadhaar,
+          otp: otpInput,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        toast({
+          title: "OTP Verified",
+          description: "OTP verification successful! Submitting form...",
+        })
+
+        // Auto-submit form after successful OTP verification
+        await handleOTPVerified()
+      } else {
+        setOtpError(data.error || "Invalid OTP. Please try again.")
+        toast({
+          title: "Verification Failed",
+          description: data.error || "Invalid OTP. Please try again.",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("OTP verification error:", error)
+      setOtpError("Failed to verify OTP. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to verify OTP. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsVerifyingOTP(false)
     }
   }
 
@@ -475,7 +591,6 @@ export default function UdyamRegistrationForm() {
                 className="text-white hover:text-purple-200"
                 aria-label="Toggle language"
               >
-                
                 <Globe className="h-4 w-4 mr-1" />
                 {t("languageToggle")}
               </Button>
@@ -529,162 +644,219 @@ export default function UdyamRegistrationForm() {
           {lastSaved && <p className="text-sm text-gray-500">Last saved: {lastSaved.toLocaleTimeString()}</p>}
         </div>
 
-        <ProgressTracker currentStep={currentStep} totalSteps={2} steps={progressSteps} />
+        <ProgressTracker currentStep={currentStep} totalSteps={3} steps={progressSteps} />
 
         <div className="bg-white rounded-lg shadow-sm">
           <div className="p-6">
             <h1 className="text-2xl font-semibold text-gray-800 mb-8 text-center">{t("title")}</h1>
 
-            <div className="bg-blue-500 text-white px-4 py-3 rounded-t-lg">
-              <h2 className="text-lg font-medium">{t("aadhaarSection")}</h2>
-            </div>
+            {currentStep === 3 ? (
+              <div className="max-w-md mx-auto">
+                <div className="bg-blue-500 text-white px-4 py-3 rounded-t-lg">
+                  <h2 className="text-lg font-medium">OTP Verification</h2>
+                </div>
 
-            <div className="border border-gray-200 rounded-b-lg p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                {udyamFields.map((field) => (
-                  <div key={field.id}>
-                    <FormField
-                      field={field}
-                      value={(formData as FormData)[field.name] || ""} // Added type assertion
-                      error={errors[field.name]}
-                      onChange={(value) => handleFieldChange(field.name, value)}
-                      onBlur={() => validateField(field.name, (formData as FormData)[field.name] || "")} // Added type assertion
-                      disabled={isSubmitting || isValidating[field.name]}
-                      showOTPActions={field.name === "aadhaar"}
-                      onOTPVerified={field.name === "aadhaar" ? handleOTPVerified : undefined}
-                    />
+                <div className="border border-gray-200 rounded-b-lg p-6">
+                  <div className="text-center mb-6">
+                    <p className="text-gray-600 mb-4">Enter the 6-digit OTP sent to your registered mobile number</p>
+                    <p className="text-sm text-gray-500">
+                      OTP sent to: *******{((formData as FormData).aadhaar || "").slice(-4)}
+                    </p>
                   </div>
-                ))}
-              </div>
 
-              <div className="mb-6">
-                <h3 className="text-lg font-medium mb-4 text-gray-800">Address Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <Label htmlFor="pincode" className="text-sm font-medium text-gray-700 mb-2 block">
-                      PIN Code <span className="text-red-500">*</span>
-                    </Label>
-                    <div className="relative">
-                      <Input
-                        id="pincode"
-                        type="text"
-                        value={pincode}
-                        onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, "").slice(0, 6)
-                          setPincode(value)
-                          setFormData((prev) => ({ ...prev, pincode: value }))
-                        }}
-                        placeholder="Enter 6-digit PIN code"
-                        maxLength={6}
-                        className="pr-10"
-                      />
-                      <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      {pinLoading && (
-                        <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
-                          <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+                  <div className="mb-6">
+                    <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-2">
+                      Enter OTP *
+                    </label>
+                    <input
+                      type="text"
+                      id="otp"
+                      value={otpInput}
+                      onChange={(e) => {
+                        const value = e.target.value.replace(/\D/g, "").slice(0, 6)
+                        setOtpInput(value)
+                        setOtpError("")
+                      }}
+                      placeholder="000000"
+                      className={`w-full px-3 py-2 border rounded-md text-center text-lg tracking-widest ${
+                        otpError ? "border-red-500" : "border-gray-300"
+                      } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                      maxLength={6}
+                    />
+                    {otpError && <p className="mt-2 text-sm text-red-600">{otpError}</p>}
+                  </div>
+
+                  <div className="flex justify-between">
+                    <Button type="button" variant="outline" onClick={() => setCurrentStep(2)} disabled={isVerifyingOTP}>
+                      Back
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={handleVerifyOTP}
+                      disabled={isVerifyingOTP || otpInput.length !== 6}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded"
+                    >
+                      {isVerifyingOTP ? "Verifying..." : "Verify & Submit"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="bg-blue-500 text-white px-4 py-3 rounded-t-lg">
+                  <h2 className="text-lg font-medium">{t("aadhaarSection")}</h2>
+                </div>
+
+                <div className="border border-gray-200 rounded-b-lg p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    {udyamFields.map((field) => (
+                      <div key={field.id}>
+                        <FormField
+                          field={field}
+                          value={(formData as FormData)[field.name] || ""} // Added type assertion
+                          error={errors[field.name]}
+                          onChange={(value) => handleFieldChange(field.name, value)}
+                          onBlur={() => validateField(field.name, (formData as FormData)[field.name] || "")} // Added type assertion
+                          disabled={isSubmitting || isValidating[field.name]}
+                          showOTPActions={field.name === "aadhaar"}
+                          onOTPVerified={field.name === "aadhaar" ? handleOTPVerified : undefined}
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mb-6">
+                    <h3 className="text-lg font-medium mb-4 text-gray-800">Address Details</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <Label htmlFor="pincode" className="text-sm font-medium text-gray-700 mb-2 block">
+                          PIN Code <span className="text-red-500">*</span>
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id="pincode"
+                            type="text"
+                            value={pincode}
+                            onChange={(e) => {
+                              const value = e.target.value.replace(/\D/g, "").slice(0, 6)
+                              setPincode(value)
+                              setFormData((prev) => ({ ...prev, pincode: value }))
+                            }}
+                            placeholder="Enter 6-digit PIN code"
+                            maxLength={6}
+                            className="pr-10"
+                          />
+                          <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                          {pinLoading && (
+                            <div className="absolute right-10 top-1/2 transform -translate-y-1/2">
+                              <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
+                            </div>
+                          )}
                         </div>
-                      )}
+                        {pinError && <p className="text-red-500 text-sm mt-1">{pinError}</p>}
+                      </div>
+
+                      <div>
+                        <Label htmlFor="city" className="text-sm font-medium text-gray-700 mb-2 block">
+                          City <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="city"
+                          type="text"
+                          value={formData.city || ""}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
+                          placeholder="City will be auto-filled"
+                          className={locationData ? "bg-green-50 border-green-300" : ""}
+                          readOnly={!!locationData}
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="state" className="text-sm font-medium text-gray-700 mb-2 block">
+                          State <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="state"
+                          type="text"
+                          value={formData.state || ""}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, state: e.target.value }))}
+                          placeholder="State will be auto-filled"
+                          className={locationData ? "bg-green-50 border-green-300" : ""}
+                          readOnly={!!locationData}
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="district" className="text-sm font-medium text-gray-700 mb-2 block">
+                          District
+                        </Label>
+                        <Input
+                          id="district"
+                          type="text"
+                          value={formData.district || ""}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, district: e.target.value }))}
+                          placeholder="District will be auto-filled"
+                          className={locationData ? "bg-green-50 border-green-300" : ""}
+                          readOnly={!!locationData}
+                        />
+                      </div>
                     </div>
-                    {pinError && <p className="text-red-500 text-sm mt-1">{pinError}</p>}
                   </div>
 
-                  <div>
-                    <Label htmlFor="city" className="text-sm font-medium text-gray-700 mb-2 block">
-                      City <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="city"
-                      type="text"
-                      value={formData.city || ""}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, city: e.target.value }))}
-                      placeholder="City will be auto-filled"
-                      className={locationData ? "bg-green-50 border-green-300" : ""}
-                      readOnly={!!locationData}
+                  {/* Added document upload section */}
+                  <div className="mb-6 print:hidden">
+                    <DocumentUpload
+                      label={t("uploadDocument") as string}
+                      onUpload={setUploadedDocuments}
+                      multiple={true}
+                      acceptedTypes={[".pdf", ".jpg", ".jpeg", ".png"]}
+                      maxSize={5}
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="state" className="text-sm font-medium text-gray-700 mb-2 block">
-                      State <span className="text-red-500">*</span>
-                    </Label>
-                    <Input
-                      id="state"
-                      type="text"
-                      value={formData.state || ""}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, state: e.target.value }))}
-                      placeholder="State will be auto-filled"
-                      className={locationData ? "bg-green-50 border-green-300" : ""}
-                      readOnly={!!locationData}
-                    />
+                  <div className="mb-6 space-y-2 text-sm text-gray-700">
+                    <ul className="list-disc list-inside space-y-1">
+                      {tArray("requirements").map((req, index) => (
+                        <li key={index}>{req}</li>
+                      ))}
+                    </ul>
                   </div>
 
-                  <div>
-                    <Label htmlFor="district" className="text-sm font-medium text-gray-700 mb-2 block">
-                      District
-                    </Label>
-                    <Input
-                      id="district"
-                      type="text"
-                      value={formData.district || ""}
-                      onChange={(e) => setFormData((prev) => ({ ...prev, district: e.target.value }))}
-                      placeholder="District will be auto-filled"
-                      className={locationData ? "bg-green-50 border-green-300" : ""}
-                      readOnly={!!locationData}
-                    />
+                  <div className="mb-6">
+                    <div className="flex items-start space-x-3">
+                      <Checkbox
+                        id="consent"
+                        checked={consentChecked}
+                        onCheckedChange={(checked) => setConsentChecked(checked as boolean)}
+                        className="mt-1"
+                      />
+                      <label htmlFor="consent" className="text-sm text-gray-700 leading-relaxed">
+                        {t("consentText")}
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
+                      disabled={currentStep === 1}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={currentStep === 2 ? handleGenerateOTP : () => setCurrentStep(2)}
+                      disabled={isSubmitting || !consentChecked}
+                      className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded"
+                    >
+                      {isSubmitting ? "Processing..." : currentStep === 2 ? (t("validateButton") as string) : "Next"}
+                    </Button>
                   </div>
                 </div>
-              </div>
-
-              {/* Added document upload section */}
-              <div className="mb-6 print:hidden">
-                <DocumentUpload
-                  label={t("uploadDocument") as string}
-                  onUpload={setUploadedDocuments}
-                  multiple={true}
-                  acceptedTypes={[".pdf", ".jpg", ".jpeg", ".png"]}
-                  maxSize={5}
-                />
-              </div>
-
-              <div className="mb-6 space-y-2 text-sm text-gray-700">
-                <ul className="list-disc list-inside space-y-1">
-                  {tArray("requirements").map((req, index) => (
-                    <li key={index}>{req}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="mb-6">
-                <div className="flex items-start space-x-3">
-                  <Checkbox
-                    id="consent"
-                    checked={consentChecked}
-                    onCheckedChange={(checked) => setConsentChecked(checked as boolean)}
-                    className="mt-1"
-                  />
-                  <label htmlFor="consent" className="text-sm text-gray-700 leading-relaxed">
-                    {t("consentText")}
-                  </label>
-                </div>
-              </div>
-
-              <div className="flex justify-between">
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
-                  disabled={currentStep === 1}
-                >
-                  Previous
-                </Button>
-                <Button
-                  onClick={currentStep === 2 ? handleSubmit : () => setCurrentStep(2)}
-                  disabled={isSubmitting || !consentChecked}
-                  className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded"
-                >
-                  {isSubmitting ? "Processing..." : currentStep === 2 ? t("validateButton") : "Next"}
-                </Button>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         </div>
       </main>

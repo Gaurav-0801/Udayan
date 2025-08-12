@@ -216,6 +216,7 @@ export function FormField({
           )}
           aria-invalid={!!error}
           aria-describedby={error ? `${field.id}-error` : undefined}
+          data-field={field.name}
         />
 
         {/* Show/Hide toggle for sensitive fields */}
@@ -248,7 +249,7 @@ export function FormField({
               disabled={disabled || !value || value.length !== 12 || isLoadingOTP || otpVerified}
             >
               {isLoadingOTP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {otpSent ? "Resend OTP" : "Send OTP"}
+              {otpSent ? "Resend OTP" : "Validate & Generate OTP"}
             </Button>
             {otpVerified && (
               <div className="flex items-center text-green-600 text-sm">
