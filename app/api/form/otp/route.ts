@@ -1,20 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { validateOTPWithDetails } from "@/lib/form-schema"
 
-let prisma: any = null
+let prismaClient: any = null
 
 async function getPrismaClient() {
-  if (!prisma && process.env.DATABASE_URL) {
-    const { prisma: prismaClient } = await import("@/lib/prisma")
-    prisma = prismaClient
+  if (!prismaClient && process.env.DATABASE_URL) {
+    const { prisma } = await import("@/lib/prisma")
+    prismaClient = prisma
   }
-  return prisma
+  return prismaClient
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const prismaClient = await getPrismaClient()
-    if (!prismaClient) {
+    const prisma = await getPrismaClient()
+    if (!prisma) {
       return NextResponse.json({ error: "Database not available" }, { status: 503 })
     }
 
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       // Generate 6-digit OTP
       const generatedOTP = Math.floor(100000 + Math.random() * 900000).toString()
 
-      await prismaClient.otpVerification.create({
+      await prisma.otpVerification.create({
         data: {
           aadhaarNumber: aadhaar,
           otpCode: generatedOTP,
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: otpValidation.error }, { status: 400 })
       }
 
-      const storedOTP = await prismaClient.otpVerification.findFirst({
+      const storedOTP = await prisma.otpVerification.findFirst({
         where: {
           aadhaarNumber: aadhaar,
           isVerified: false,
@@ -66,21 +66,21 @@ export async function POST(request: NextRequest) {
       }
 
       if (new Date() > storedOTP.expiresAt) {
-        await prismaClient.otpVerification.delete({
+        await prisma.otpVerification.delete({
           where: { id: storedOTP.id },
         })
         return NextResponse.json({ error: "OTP has expired. Please request a new OTP." }, { status: 400 })
       }
 
       if (storedOTP.attempts >= 3) {
-        await prismaClient.otpVerification.delete({
+        await prisma.otpVerification.delete({
           where: { id: storedOTP.id },
         })
         return NextResponse.json({ error: "Too many failed attempts. Please request a new OTP." }, { status: 400 })
       }
 
       if (storedOTP.otpCode !== otp) {
-        await prismaClient.otpVerification.update({
+        await prisma.otpVerification.update({
           where: { id: storedOTP.id },
           data: { attempts: storedOTP.attempts + 1 },
         })
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      await prismaClient.otpVerification.update({
+      await prisma.otpVerification.update({
         where: { id: storedOTP.id },
         data: { isVerified: true },
       })
